@@ -1,3 +1,3 @@
-# GWS Child Theme 
+# GWS Childplate
 
-Test
+
