@@ -8,3 +8,5 @@ window.addEventListener('scroll', () => {
   document.body.classList.toggle('scrolled-up', window.scrollY < lastY)
   lastY = window.scrollY
 })
+
+console.log('GitTest')
