@@ -11,7 +11,6 @@
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
-/*test line only*/
 
 define( 'GWS_CHILDPLATE', '1.0.0' );
 
