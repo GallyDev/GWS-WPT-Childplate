@@ -1,0 +1,8 @@
+{
+    "sp-plugins": [
+      {
+        "name": "all-in-one-wp-security-and-firewall/wp-security.php",
+        "url": "test"
+      }
+    ]
+}
