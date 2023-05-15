@@ -3,7 +3,7 @@
 //     require_once ABSPATH . 'wp-admin/includes/file.php';
 // }
 
-class ckeckPlugins {
+class checkPlugins {
    
     private string $message = '';
 
