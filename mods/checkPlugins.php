@@ -15,12 +15,29 @@ class checkPlugins {
     public function wpSetMessage($type)
     {
        $this->message = '<div class="notice notice-'.$type.' is-dismissible">';
-       $this->message .= match($type) {
-        'info' => '<p></p>',
-        'warning' => '<p></p>',
-        'error' => '<p>Nicht alle Plugins sind installiert</p>',
-        'success' => '<p>Alle notwendingen Plugins sind installiert.</p>',
-       };
+    //    $this->message .= match($type) {
+    //     'info' => '<p></p>',
+    //     'warning' => '<p></p>',
+    //     'error' => '<p>Nicht alle Plugins sind installiert</p>',
+    //     'success' => '<p>Alle notwendingen Plugins sind installiert.</p>',
+    //    };
+
+        switch ($type) {
+            case 'info':
+            $this->message .= '<p></p>';
+            break;
+            case 'warning':
+            $this->message .= '<p></p>';
+            break;
+            case 'error':
+            $this->message .= '<p>Nicht alle Plugins sind installiert</p>';
+            break;
+            case 'success':
+            $this->message .= '<p>Alle notwendingen Plugins sind installiert.</p>';
+            break;
+            default:
+            break;
+        }
        $this->message .='</div>';
     }
 
