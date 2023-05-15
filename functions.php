@@ -41,3 +41,10 @@ add_action( 'wp_enqueue_scripts', 'gws_childplate_scripts_styles', 20 );
  * mainmods
  */
 require_once('mods/mainmods.php'); 
+
+/**
+ * Check Plugins
+ */
+require_once('mods/checkPlugins.php');
+$checkPlugin = new checkPlguins();
+$checkPlugin->isInstalled();
