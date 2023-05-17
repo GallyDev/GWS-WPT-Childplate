@@ -47,4 +47,4 @@ require_once('mods/mainmods.php');
  */
 require_once('mods/checkPlugins.php');
 $checkPlugin = new checkPlugins();
-$checkPlugin->isInstalled();
+$checkPlugin->checkPluginInstallation();

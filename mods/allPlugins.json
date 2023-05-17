@@ -3,6 +3,10 @@
       {
         "name": "all-in-one-wp-security-and-firewall/wp-security.php",
         "url": "test"
+      },
+      {
+        "name": "elementor/elementor.php",
+        "url": "test"
       }
     ]
 }
