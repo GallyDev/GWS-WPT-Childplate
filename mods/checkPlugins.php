@@ -13,7 +13,7 @@ class checkPlugins {
         return json_decode(file_get_contents($jsonFilePath));
     }
 
-    public function wpSetMessage($type)
+    public function wpSetMessage($type, $customMessage = '')
     {
        $this->message = '<div class="notice notice-'.$type.' is-dismissible">';
     //    $this->message .= match($type) {
@@ -23,21 +23,25 @@ class checkPlugins {
     //     'success' => '<p>Alle notwendingen Plugins sind installiert.</p>',
     //    };
 
-        switch ($type) {
-            case 'info':
-            $this->message .= '<p></p>';
-            break;
-            case 'warning':
-            $this->message .= '<p></p>';
-            break;
-            case 'error':
-            $this->message .= '<p>Nicht alle Plugins sind installiert</p>';
-            break;
-            case 'success':
-            $this->message .= '<p>Alle notwendingen Plugins sind installiert.</p>';
-            break;
-            default:
-            break;
+        if($customMessage !='') {
+            $this->message .= '<p>'.$customMessage.'</p>';
+        } else {
+            switch ($type) {
+                case 'info':
+                $this->message .= '<p></p>';
+                break;
+                case 'warning':
+                $this->message .= '<p></p>';
+                break;
+                case 'error':
+                $this->message .= '<p>Nicht alle Plugins sind installiert</p>';
+                break;
+                case 'success':
+                $this->message .= '<p>Alle notwendingen Plugins sind installiert.</p>';
+                break;
+                default:
+                break;
+            }
         }
        $this->message .='</div>';
     }
@@ -62,6 +66,8 @@ class checkPlugins {
                     $this->wpSetMessage('error');
                     add_action('admin_notices', [$this, 'wpSendMessage']);
                 }
+            } else {
+                $this->wpSetMessage('error', 'Die Funktion is_plugin_active wird nicht geladen!');
             }
         }
     }
