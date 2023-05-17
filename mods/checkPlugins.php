@@ -9,7 +9,8 @@ class checkPlugins {
 
     public function getPluginsArray()
     {
-       return json_decode(file_get_contents('allPlugins.json'));
+        $jsonFilePath = __DIR__.'allPlugins.json';
+        return json_decode(file_get_contents($jsonFilePath));
     }
 
     public function wpSetMessage($type)
@@ -54,10 +55,10 @@ class checkPlugins {
         $neededPlugins = $pluginsObj->{"sp-plugins"}; //json_decode create objects from type stdClass not arrays
         foreach($neededPlugins as $neededPlugin) {
             if(is_plugin_active($neededPlugin->name)) {
-                $this->wpMessage('success');
+                $this->wpSetMessage('success');
                 add_action('admin_notices', [$this, 'wpSendMessage']);
             }else{
-                $this->wpMessage('error');
+                $this->wpSetMessage('error');
                 add_action('admin_notices', [$this, 'wpSendMessage']);
             }
         }
