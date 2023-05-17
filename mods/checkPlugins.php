@@ -54,12 +54,14 @@ class checkPlugins {
         $pluginsObj = $this->getPluginsArray();
         $neededPlugins = $pluginsObj->{"sp-plugins"}; //json_decode create objects from type stdClass not arrays
         foreach($neededPlugins as $neededPlugin) {
-            if(is_plugin_active($neededPlugin->name)) {
-                $this->wpSetMessage('success');
-                add_action('admin_notices', [$this, 'wpSendMessage']);
-            }else{
-                $this->wpSetMessage('error');
-                add_action('admin_notices', [$this, 'wpSendMessage']);
+            if(function_exists('is_plugin_active')){
+                if(is_plugin_active($neededPlugin->name)) {
+                    $this->wpSetMessage('success');
+                    add_action('admin_notices', [$this, 'wpSendMessage']);
+                }else{
+                    $this->wpSetMessage('error');
+                    add_action('admin_notices', [$this, 'wpSendMessage']);
+                }
             }
         }
     }
