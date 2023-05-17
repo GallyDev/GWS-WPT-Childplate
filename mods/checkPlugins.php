@@ -68,6 +68,7 @@ class checkPlugins {
                 }
             } else {
                 $this->wpSetMessage('error', 'Die Funktion is_plugin_active wird nicht geladen!');
+                add_action( 'admin_notices', [$this, 'wpSendMessage']);
             }
         }
     }
