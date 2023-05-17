@@ -9,7 +9,7 @@ class checkPlugins {
 
     public function getPluginsArray()
     {
-        $jsonFilePath = __DIR__.'allPlugins.json';
+        $jsonFilePath = __DIR__.'/allPlugins.json';
         return json_decode(file_get_contents($jsonFilePath));
     }
 
