@@ -134,72 +134,345 @@ class checkPlugins {
        
     }
 
-    public function installPlugins() {
-        if (isset($_GET['action']) && $_GET['action'] === 'installPlugins') {
-            $pluginSlugs = $this->toInstall;
-            // var_dump($pluginSlugs);
-            require_once ABSPATH . 'wp-admin/includes/file.php';
-            require_once ABSPATH . 'wp-admin/includes/plugin-install.php';
- 
-            foreach ($pluginSlugs as $pluginSlug) {
-                $pluginSlug = explode('/', $pluginSlug)[0];
-                $pluginInfo = plugins_api('plugin_information', ['slug' => $pluginSlug]);
-                
-                
-                if (is_wp_error($pluginInfo)) {
-                    // Fehler beim Abrufen der Plugin-Informationen
-                    echo 'Fehler beim Abrufen der Plugin-Informationen: ' . htmlspecialchars($pluginInfo->get_error_message());
-                } else {
-                    $pluginZipUrl = $pluginInfo->download_link;
-                    $tempDir = WP_CONTENT_DIR . '/temp';
+   public function installPlugins() {
+    if (isset($_GET['action']) && $_GET['action'] === 'installPlugins') {
+        $pluginSlugs = $this->toInstall;
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/plugin-install.php';
 
-                    if (!is_dir($tempDir)) {
-                        $mkdirResult = wp_mkdir_p($tempDir);
-                        if (!$mkdirResult) {
-                            echo 'Fehler beim Erstellen des temporären Verzeichnisses: ' . htmlspecialchars($tempDir);
-                            continue;
-                        }else{
-                            chmod($tempDir, 0777);
-                        }
-                    }
+        foreach ($pluginSlugs as $pluginSlug) {
+            $pluginFile = basename($pluginSlug);
+            $pluginSlug = explode('/', $pluginSlug)[0];
 
-                    WP_Filesystem();
-                    
-                    $result = unzip_file($pluginZipUrl, $tempDir);
+            $pluginInfo = plugins_api('plugin_information', ['slug' => $pluginSlug]);
 
-                    $zip = new ZipArchive();
-                    $zipStatus = $zip->open($pluginZipUrl);
-                
-                    if (is_wp_error($result)) {
-                        // Fehler beim Entpacken des Plugin-Zip-Archivs
-                        echo 'Fehler beim Entpacken des Plugin-Zip-Archivs: ' . htmlspecialchars( $result->get_error_message());
-                      
-                    } else {
-                         
-                        $pluginDir = $tempDir . '/' . $pluginSlug;
-                        $destinationDir = WP_PLUGIN_DIR . '/' . $pluginSlug;
-                        $result = copy_dir($pluginDir, $destinationDir);
-                        
-                        if (is_wp_error($result)) {
-                            // Fehler beim Kopieren des Plugins in das Zielverzeichnis
-                            echo 'Fehler beim Kopieren des Plugins in das Zielverzeichnis: ' . htmlspecialchars( $result->get_error_message());
-                        } else {
-                            // Plugin erfolgreich installiert und aktiviert
-                            activate_plugin($destinationDir . '/' . $pluginSlug . '.php');
-                            echo 'Plugin erfolgreich installiert und aktiviert: ' .  htmlspecialchars($pluginSlug);
-                        }
-                    }
-                    
-                    WP_Filesystem(true);
-                    if (is_dir($tempDir)) {
-                        // Lösche das temporäre Verzeichnis
-                        $removed = rmdir($tempDir);
-                        if (!$removed) {
-                            echo 'Fehler beim Löschen des temporären Verzeichnisses: ' . htmlspecialchars($tempDir);
-                        }
-                    }
-                }
+            if (is_wp_error($pluginInfo)) {
+                // Fehler beim Abrufen der Plugin-Informationen
+                echo 'Fehler beim Abrufen der Plugin-Informationen: ' . htmlspecialchars($pluginInfo->get_error_message());
+                continue;
+            }
+
+            $tempDir = WP_CONTENT_DIR . '/temp';
+
+            if (!is_dir($tempDir) && !wp_mkdir_p($tempDir)) {
+                echo 'Fehler beim Erstellen des temporären Verzeichnisses: ' . htmlspecialchars($tempDir);
+                continue;
+            }
+
+            $pluginZipUrl = $pluginInfo->download_link;
+            $zipFilePath = $tempDir . '/' . basename($pluginZipUrl);
+
+            // Zip-Datei herunterladen
+            $response = wp_remote_get($pluginZipUrl, ['timeout' => 120]);
+
+            if (is_wp_error($response)) {
+                echo 'Fehler beim Herunterladen der Zip-Datei: ' . htmlspecialchars($response->get_error_message());
+                continue;
+            }
+
+            // Zip-Datei speichern
+            if (!file_put_contents($zipFilePath, $response['body'])) {
+                echo 'Fehler beim Speichern der Zip-Datei.';
+                continue;
+            }
+
+            WP_Filesystem();
+
+            $result = unzip_file($zipFilePath, $tempDir);
+
+            if (is_wp_error($result)) {
+                // Fehler beim Entpacken des Plugin-Zip-Archivs
+                echo 'Fehler beim Entpacken des Plugin-Zip-Archivs: ' . htmlspecialchars($result->get_error_message());
+                continue;
+            }
+
+            $destinationDir = WP_PLUGIN_DIR . '/' . $pluginSlug;
+
+            if (!is_dir($destinationDir) && !wp_mkdir_p($destinationDir)) {
+                echo 'Fehler beim Erstellen des Zielverzeichnisses: ' . htmlspecialchars($destinationDir);
+                continue;
+            }
+
+            $result = $this->copyPluginFiles($tempDir . '/' . $pluginSlug, $destinationDir);
+
+            if (is_wp_error($result)) {
+                // Fehler beim Kopieren des Plugins in das Zielverzeichnis
+                echo 'Fehler beim Kopieren des Plugins in das Zielverzeichnis: ' . htmlspecialchars($result->get_error_message());
+                continue;
+            }
+
+            // Plugin erfolgreich installiert
+            echo $destinationDir . '/' . $pluginFile;
+            
+            // Plugin aktivieren
+            $pluginPath = $destinationDir . '/' . $pluginFile;
+            $activationResult = activate_plugin($pluginPath);
+
+            if (is_wp_error($activationResult)) {
+                // Fehler beim Aktivieren des Plugins
+                echo 'Fehler beim Aktivieren des Plugins: ' . htmlspecialchars($activationResult->get_error_message());
+                continue;
+            }
+
+            echo 'Plugin erfolgreich installiert und aktiviert: ' . htmlspecialchars($pluginSlug);
+        }
+
+        WP_Filesystem(true);
+        $this->removeTempDirectory($tempDir);
+    }
+}
+
+private function copyPluginFiles($sourceDir, $destinationDir) {
+    if (!is_dir($sourceDir)) {
+        return new WP_Error('source_dir_not_found', 'Quellverzeichnis nicht gefunden: ' . htmlspecialchars($sourceDir));
+    }
+
+    $files = scandir($sourceDir);
+
+    if ($files === false) {
+        return new WP_Error('scandir_error', 'Fehler beim Scannen des Quellverzeichnisses: ' . htmlspecialchars($sourceDir));
+    }
+
+    foreach ($files as $file) {
+        if ($file === '.' || $file === '..') {
+            continue;
+        }
+
+        $sourcePath = $sourceDir . '/' . $file;
+        $destinationPath = $destinationDir . '/' . $file;
+
+        if (is_dir($sourcePath)) {
+            if (!is_dir($destinationPath) && !wp_mkdir_p($destinationPath)) {
+                return new WP_Error('destination_dir_error', 'Fehler beim Erstellen des Zielverzeichnisses: ' . htmlspecialchars($destinationPath));
+            }
+
+            $result = $this->copyPluginFiles($sourcePath, $destinationPath);
+
+            if (is_wp_error($result)) {
+                return $result;
+            }
+        } else {
+            if (!copy($sourcePath, $destinationPath)) {
+                return new WP_Error('copy_file_error', 'Fehler beim Kopieren der Datei: ' . htmlspecialchars($sourcePath));
             }
         }
     }
+
+    return true;
+}
+
+    
+    private function removeTempDirectory($dir) {
+        if (!is_dir($dir)) {
+            return false;
+        }
+    
+        $files = array_diff(scandir($dir), array('.', '..'));
+    
+        foreach ($files as $file) {
+            $path = $dir . '/' . $file;
+    
+            if (is_dir($path)) {
+                $this->removeTempDirectory($path);
+            } else {
+                unlink($path);
+            }
+        }
+    
+        return rmdir($dir);
+    }
+    
+    
+    // private function removeTempDirectory($dir) {
+    //     if (!is_dir($dir)) {
+    //         return false;
+    //     }
+        
+    //     $files = array_diff(scandir($dir), array('.', '..'));
+    //     foreach ($files as $file) {
+    //         $path = $dir . '/' . $file;
+    //         if (is_dir($path)) {
+    //             $this->removeTempDirectory($path);
+    //         } else {
+    //             unlink($path);
+    //         }
+    //     }
+        
+    //     return rmdir($dir);
+    // }
+
+
+    // public function installPlugins() {
+    //     if (isset($_GET['action']) && $_GET['action'] === 'installPlugins') {
+    //         $pluginSlugs = $this->toInstall;
+    //         require_once ABSPATH . 'wp-admin/includes/file.php';
+    //         require_once ABSPATH . 'wp-admin/includes/plugin-install.php';
+    
+    //         foreach ($pluginSlugs as $pluginSlug) {
+    //             $pluginFile = basename($pluginSlug);
+    //             $pluginSlug = explode('/', $pluginSlug)[0];
+    
+    //             $pluginInfo = plugins_api('plugin_information', ['slug' => $pluginSlug]);
+    
+    //             if (is_wp_error($pluginInfo)) {
+    //                 // Fehler beim Abrufen der Plugin-Informationen
+    //                 echo 'Fehler beim Abrufen der Plugin-Informationen: ' . htmlspecialchars($pluginInfo->get_error_message());
+    //                 continue;
+    //             }
+    
+    //             $pluginZipUrl = $pluginInfo->download_link;
+    //             $tempDir = WP_CONTENT_DIR . '/temp';
+    
+    //             if (!is_dir($tempDir) && !wp_mkdir_p($tempDir)) {
+    //                 echo 'Fehler beim Erstellen des temporären Verzeichnisses: ' . htmlspecialchars($tempDir);
+    //                 continue;
+    //             }
+    
+    //             // Zip-Datei herunterladen
+    //             $response = wp_remote_get($pluginZipUrl);
+    //             if (is_wp_error($response)) {
+    //                 echo 'Fehler beim Herunterladen der Zip-Datei: ' . htmlspecialchars($response->get_error_message());
+    //                 continue;
+    //             }
+    
+    //             $zipFilePath = $tempDir . '/' . $pluginSlug . '.zip';
+    
+    //             // Zip-Datei speichern
+    //             if (!file_put_contents($zipFilePath, $response['body'])) {
+    //                 echo 'Fehler beim Speichern der Zip-Datei.';
+    //                 continue;
+    //             }
+    
+    //             WP_Filesystem();
+    
+    //             $result = unzip_file($zipFilePath, $tempDir);
+    
+    //             if (is_wp_error($result)) {
+    //                 // Fehler beim Entpacken des Plugin-Zip-Archivs
+    //                 echo 'Fehler beim Entpacken des Plugin-Zip-Archivs: ' . htmlspecialchars($result->get_error_message());
+    //                 continue;
+    //             }
+    
+    //             $pluginDir = $tempDir . '/' . $pluginSlug;
+    //             $destinationDir = WP_PLUGIN_DIR . '/' . $pluginSlug;
+    
+    //             if (!is_dir($destinationDir) && !wp_mkdir_p($destinationDir)) {
+    //                 echo 'Fehler beim Erstellen des Zielverzeichnisses: ' . htmlspecialchars($destinationDir);
+    //                 continue;
+    //             }
+    
+    //             $result = copy_dir($pluginDir, $destinationDir);
+    
+    //             if (is_wp_error($result)) {
+    //                 // Fehler beim Kopieren des Plugins in das Zielverzeichnis
+    //                 echo 'Fehler beim Kopieren des Plugins in das Zielverzeichnis: ' . htmlspecialchars($result->get_error_message());
+    //                 continue;
+    //             }
+    
+    //             // Plugin erfolgreich installiert und aktiviert
+    //             echo $destinationDir . '/' . $pluginFile;
+    //             activate_plugin($destinationDir . '/' . $pluginFile);
+    //             echo 'Plugin erfolgreich installiert und aktiviert: ' . htmlspecialchars($pluginSlug);
+    
+    //             WP_Filesystem(true);
+    
+    //             // Lösche das temporäre Verzeichnis
+    //             $this->removeTempDirectory($tempDir);
+    //         }
+    //     }
+    // }
+    
+
+    // public function installPlugins() {
+    //     $success = true;
+    //     if (isset($_GET['action']) && $_GET['action'] === 'installPlugins') {
+    //         $pluginSlugs = $this->toInstall;
+    //         require_once ABSPATH . 'wp-admin/includes/file.php';
+    //         require_once ABSPATH . 'wp-admin/includes/plugin-install.php';
+ 
+    //         foreach ($pluginSlugs as $pluginSlug) {
+    //             $pluginFile = basename($pluginSlug);
+    //             $pluginSlug = explode('/', $pluginSlug)[0];
+                
+    //             $pluginInfo = plugins_api('plugin_information', ['slug' => $pluginSlug]);
+                
+                
+    //             if (is_wp_error($pluginInfo)) {
+    //                 // Fehler beim Abrufen der Plugin-Informationen
+    //                 echo 'Fehler beim Abrufen der Plugin-Informationen: ' . htmlspecialchars($pluginInfo->get_error_message());
+    //             } else {
+    //                 $pluginZipUrl = $pluginInfo->download_link;
+    //                 $tempDir = WP_CONTENT_DIR . '/temp';
+            
+    //                 if (!is_dir($tempDir)) {
+    //                     $mkdirResult = wp_mkdir_p($tempDir);
+    //                     if (!$mkdirResult) {
+    //                         echo 'Fehler beim Erstellen des temporären Verzeichnisses: ' . htmlspecialchars($tempDir);
+    //                         continue;
+    //                     }else{
+    //                         chmod($tempDir, 0755);
+    //                     }
+    //                 }
+
+
+    //                 // Zip-Datei herunterladen
+    //                 $response = wp_remote_get($pluginZipUrl);
+    //                 if (is_wp_error($response)) {
+    //                     echo 'Fehler beim Herunterladen der Zip-Datei: ' . htmlspecialchars($response->get_error_message());
+    //                     continue;
+    //                 }
+
+    //                 $zipFilePath = $tempDir . '/' . $pluginSlug.'.zip';
+
+    //                 // Zip-Datei speichern
+    //                 $fileSaved = file_put_contents($zipFilePath, $response['body']);
+    //                 if ($fileSaved === false) {
+    //                     echo 'Fehler beim Speichern der Zip-Datei.';
+    //                     continue;
+    //                 }
+                    
+    //                 WP_Filesystem();
+                    
+    //                 $result = unzip_file($zipFilePath, $tempDir);
+
+    //                 if (is_wp_error($result)) {
+    //                     // Fehler beim Entpacken des Plugin-Zip-Archivs
+    //                     echo 'Fehler beim Entpacken des Plugin-Zip-Archivs: ' . htmlspecialchars( $result->get_error_message());
+    //                     $success = false;
+    //                 } else {
+                         
+    //                     $pluginDir = $tempDir . '/' . $pluginSlug;
+    //                     $destinationDir = WP_PLUGIN_DIR . '/' . $pluginSlug;
+    //                     if (!is_dir($destinationDir)) {
+    //                         $mkdirResult = wp_mkdir_p($destinationDir);
+    //                         if (!$mkdirResult) {
+    //                             echo 'Fehler beim Erstellen des Zielverzeichnisses: ' . htmlspecialchars($destinationDir);
+    //                             continue;
+    //                         }
+    //                     }
+    //                     $result = copy_dir($pluginDir, $destinationDir);
+                        
+    //                     if (is_wp_error($result)) {
+    //                         // Fehler beim Kopieren des Plugins in das Zielverzeichnis
+    //                         echo 'Fehler beim Kopieren des Plugins in das Zielverzeichnis: ' . htmlspecialchars( $result->get_error_message());
+    //                     } else {
+    //                         // Plugin erfolgreich installiert und aktiviert
+    //                         echo $destinationDir . '/' . $pluginFile;
+    //                         activate_plugin($destinationDir . '/' . $pluginFile);
+    //                         echo 'Plugin erfolgreich installiert und aktiviert: ' .  htmlspecialchars($pluginSlug);
+    //                     }
+    //                 }
+                    
+    //                 WP_Filesystem(true);
+    //                 if ($success && is_dir($tempDir)) {
+    //                     // Lösche das temporäre Verzeichnis
+    //                     $removed = $this->removeTempDirectory($tempDir);
+    //                     if (!$removed) {
+    //                         echo 'Fehler beim Löschen des temporären Verzeichnisses: ' . htmlspecialchars($tempDir);
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 }
