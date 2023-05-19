@@ -1,12 +1,14 @@
 {
     "sp-plugins": [
       {
+        "pluginName": "All in one WP Security",
         "name": "all-in-one-wp-security-and-firewall/wp-security.php",
-        "url": "test"
+        "url": "https://downloads.wordpress.org/plugin/all-in-one-wp-security-and-firewall.zip"
       },
       {
+        "pluginName": "Elementor",
         "name": "elementor/elementor.php",
-        "url": "test"
+        "url": "https://downloads.wordpress.org/plugin/elementor.zip"
       }
     ]
 }

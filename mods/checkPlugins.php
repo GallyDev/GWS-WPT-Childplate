@@ -1,10 +1,15 @@
 <?php
-//  if ( ! function_exists( 'WP_Filesystem' ) ) {
-//     require_once ABSPATH . 'wp-admin/includes/file.php';
-// }
+if ( ! defined( 'ABSPATH' ) ) {
+    require_once __DIR__.'/../../../../wp-load.php';
+}
+
+if ( ! function_exists( 'WP_Filesystem' ) ) {
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+}
 
 class checkPlugins {
    
+    private array $toInstall = [];
     private int $activePlugins = 0;
     private string $message = '';
     private int $installedPlugins = 0;
@@ -19,7 +24,14 @@ class checkPlugins {
         $this->pluginsArr = $this->getPluginsArray();
         $this->neededPlugins = $this->pluginsArr["sp-plugins"]; 
         $this->amountPlugins = count($this->neededPlugins);
+        add_action('wp_ajax_installPlugins', [$this,'installPlugins']);
     }
+
+
+    function test_ajax_endpoint() {
+        die('Ajax endpoint is working.');
+    }
+    
 
     /**
      * Gives the plugin list as an associative array
@@ -46,10 +58,10 @@ class checkPlugins {
     //     'error' => '<p>Nicht alle Plugins sind installiert</p>',
     //     'success' => '<p>Alle notwendingen Plugins sind installiert.</p>',
     //    };
-
+        
         if($customMessage !='') {
             $this->message .= '<p>'.$customMessage.'</p>';
-        } else {
+        }else{
             switch ($type) {
                 case 'info':
                 $this->message .= '<p></p>';
@@ -65,7 +77,7 @@ class checkPlugins {
                 break;
             }
         }
-       $this->message .='</div>';
+        $this->message .='</div>';
     }
 
     /**
@@ -78,16 +90,6 @@ class checkPlugins {
             echo $this->message;
         }
     }
-
-    // public function isPluginActive($pluginSlug) {
-    //     $activePlugins = get_option('active_plugins');
-    //     foreach ($activePlugins as $activePlugin) {
-    //         if (strpos($activePlugin, $pluginSlug) !== false) {
-    //             return true;
-    //         }
-    //     }
-    //     return false;
-    // }
 
     /**
      * Check if the plugin is installed
@@ -106,34 +108,98 @@ class checkPlugins {
      */
     public function checkPluginInstallation()
     {
+        $message = '<p><a class="button button-primary" href="./mods/installPlugins.php">Alle Plugins installieren</a></p>';
         foreach($this->neededPlugins as $neededPlugin) {
-            // $isActive = $this->isPluginActive($neededPlugin['name']);
             $isInstalled = $this->isPluginInstalled($neededPlugin['name']);
-            $notInstalled = 0;
-            $notActive = 0;
-
             if($isInstalled) {
                 $this->installedPlugins++;
-
-                if($this->isPluginActive) {
-                    $this->activePlugins++;
-                    $this->amountActivePlugins = ($this->amountPlugins - $this->installedPlugins) - $this->activePlugins;
-                } 
-            }
-            
-            $notInstalled = $this->amountPlugins - $this->installedPlugins;
-            $notActive =  $this->amountPlugins - $this->amountActivePlugins;
-
-            if($notInstalled != 0 && $notInstalled != $this->amountPlugins ) {
-                $this->wpSetMessage('error', $notInstalled.'/'.$this->amountPlugins.' Plugins sind nicht installiert.');
-                add_action('admin_notices', [$this, 'wpSendMessage']);
-            }else if($notInstalled ==  $this->amountPlugins){
-                $this->wpSetMessage('error');
-                add_action('admin_notices', [$this, 'wpSendMessage']);
             }else{
-                $this->wpSetMessage('success');
-                add_action('admin_notices', [$this, 'wpSendMessage']);
-            } 
+                $this->toInstall[] = $neededPlugin['name'];
+            }
+           
+            
+            $isNotInstalled = $this->amountPlugins - $this->installedPlugins;
+            
+            $isAllNotInstalled = $isNotInstalled === $this->amountPlugins;
+
+            //Two ternaire operations to get the message type and the message its self
+            $messageType = ($isNotInstalled !== 0 && $isNotInstalled !== $this->amountPlugins) ? 'error' : ($isAllNotInstalled ? 'error' : 'success');
+            $messageWithButton = $isNotInstalled . '/' . $this->amountPlugins . ' Plugins sind nicht installiert. 
+                        <a class="button button-primary" href="'.esc_url(add_query_arg('action', 'installPlugins', admin_url('admin-ajax.php'))).'">Alle Plugins installieren</a>';
+            $message = ($messageType === 'error') ? ($messageWithButton) : '';
+            
+            $this->wpSetMessage($messageType, $message);
+            add_action('admin_notices', [$this, 'wpSendMessage']);
+        }
+       
+    }
+
+    public function installPlugins() {
+        if (isset($_GET['action']) && $_GET['action'] === 'installPlugins') {
+            $pluginSlugs = $this->toInstall;
+            // var_dump($pluginSlugs);
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            require_once ABSPATH . 'wp-admin/includes/plugin-install.php';
+ 
+            foreach ($pluginSlugs as $pluginSlug) {
+                $pluginSlug = explode('/', $pluginSlug)[0];
+                $pluginInfo = plugins_api('plugin_information', ['slug' => $pluginSlug]);
+                
+                
+                if (is_wp_error($pluginInfo)) {
+                    // Fehler beim Abrufen der Plugin-Informationen
+                    echo 'Fehler beim Abrufen der Plugin-Informationen: ' . htmlspecialchars($pluginInfo->get_error_message());
+                } else {
+                    $pluginZipUrl = $pluginInfo->download_link;
+                    $tempDir = WP_CONTENT_DIR . '/temp';
+
+                    if (!is_dir($tempDir)) {
+                        $mkdirResult = wp_mkdir_p($tempDir);
+                        if (!$mkdirResult) {
+                            echo 'Fehler beim Erstellen des temporären Verzeichnisses: ' . htmlspecialchars($tempDir);
+                            continue;
+                        }else{
+                            chmod($tempDir, 0777);
+                        }
+                    }
+
+                    WP_Filesystem();
+                    
+                    $result = unzip_file($pluginZipUrl, $tempDir);
+
+                    $zip = new ZipArchive();
+                    $zipStatus = $zip->open($pluginZipUrl);
+                
+                    if (is_wp_error($result)) {
+                        // Fehler beim Entpacken des Plugin-Zip-Archivs
+                        echo 'Fehler beim Entpacken des Plugin-Zip-Archivs: ' . htmlspecialchars( $result->get_error_message());
+                      
+                    } else {
+                         
+                        $pluginDir = $tempDir . '/' . $pluginSlug;
+                        $destinationDir = WP_PLUGIN_DIR . '/' . $pluginSlug;
+                        $result = copy_dir($pluginDir, $destinationDir);
+                        
+                        if (is_wp_error($result)) {
+                            // Fehler beim Kopieren des Plugins in das Zielverzeichnis
+                            echo 'Fehler beim Kopieren des Plugins in das Zielverzeichnis: ' . htmlspecialchars( $result->get_error_message());
+                        } else {
+                            // Plugin erfolgreich installiert und aktiviert
+                            activate_plugin($destinationDir . '/' . $pluginSlug . '.php');
+                            echo 'Plugin erfolgreich installiert und aktiviert: ' .  htmlspecialchars($pluginSlug);
+                        }
+                    }
+                    
+                    WP_Filesystem(true);
+                    if (is_dir($tempDir)) {
+                        // Lösche das temporäre Verzeichnis
+                        $removed = rmdir($tempDir);
+                        if (!$removed) {
+                            echo 'Fehler beim Löschen des temporären Verzeichnisses: ' . htmlspecialchars($tempDir);
+                        }
+                    }
+                }
+            }
         }
     }
 }
