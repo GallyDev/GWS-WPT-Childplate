@@ -1,5 +1,7 @@
 <?php
-
+if(!class_exists('WpMessages')) {
+    require_once 'WpMessages.php';
+}
 
 /**
  * Gravity Forms PLZ & Ort change order

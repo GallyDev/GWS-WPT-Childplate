@@ -7,7 +7,7 @@ if ( ! function_exists( 'WP_Filesystem' ) ) {
     require_once ABSPATH . 'wp-admin/includes/file.php';
 }
 
-require 'WpMessages.php';
+require_once 'WpMessages.php';
 
 class checkPlugins {
    
