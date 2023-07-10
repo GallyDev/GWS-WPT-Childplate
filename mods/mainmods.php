@@ -46,3 +46,40 @@ function wpse_media_extra_column_value( $column_name, $id ) {
 }
 add_filter( 'manage_media_columns', 'wpse_media_extra_column' );
 add_action( 'manage_media_custom_column', 'wpse_media_extra_column_value', 10, 2 );
+
+/**
+ * Check if Search Engine Indexing is enabled and displayes a massage if it is enabled
+ * @return void
+ */
+function checkSearchEngineIndexing() {
+    $blog_public = get_option('blog_public');
+    $msg = new WpMessages();
+    
+    if ($blog_public === '0') {
+        $message = 'Die Seite ist nicht Öffentlich und wird nicht von Suchmaschinen indexiert.  
+                    <a class="button button-primary" href="'.esc_url(admin_url('options-reading.php')).'">Einstellungen</a>';
+        $msg->wpSetMessage('error', $message, false);
+        $msg->wpSendMessage();
+    }
+    
+}
+
+add_action('init', 'checkSearchEngineIndexing');
+
+/**
+ * Checks and sets Secure headers
+ */
+function checkAndSetHeaders()
+{
+    $allHeaders = getallheaders();
+    $headersToUse = ['Strict-Transport-Security' => 'Strict-Transport-Security: max-age=31536000',
+                    'X-Content-Type-Options' => 'X-Content-Type-Options: nosniff', 
+                    'X-Frame-Options' => 'X-Frame-Options: sameorigin', 
+                    'Referrer-Policy' => 'Referrer-Policy: origin-when-cross-origin'];
+    foreach ($headersToUse as $header => $headerSetUp) {
+        if (!isset($allHeaders[$header])) {
+            header($headerSetUp);
+        }
+    }
+}
+add_action('wp_headers', 'checkAndSetHeaders');
